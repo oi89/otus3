@@ -8,36 +8,35 @@ import org.openqa.selenium.WebElement;
 import org.openqa.selenium.interactions.Actions;
 import org.openqa.selenium.support.ui.ExpectedConditions;
 import org.openqa.selenium.support.ui.WebDriverWait;
+import org.assertj.core.api.SoftAssertions;
 
 import java.util.List;
 import java.util.Optional;
 
-public class YandexMarketCompare extends DriverInitialize {
+public class YandexMarketCompareTest extends DriverInitialize {
     private final String BASE_URL = "https://market.yandex.ru/";
 
-    YandexMarketCompare() {
+    YandexMarketCompareTest() {
         super();
     }
 
     @BeforeEach
     public void setUp() {
-        logger = LogManager.getLogger(YandexMarketCompare.class);
+        logger = LogManager.getLogger(YandexMarketCompareTest.class);
         logger.info("Драйвер успешно запущен");
     }
 
     @AfterEach
     public void setDown() {
-        if (driver != null) {
-            driver.quit();
-            logger.info("Драйвер успешно остановлен");
-        }
+        quitDriver();
+        logger.info("Драйвер успешно остановлен");
     }
 
     @Test
-    public void comparePhonesInYandexMarket() {
+    public void comparePhonesInYandexMarketTest() {
+        String popupWindowLocator = "//button/span[contains(text(), 'Понятно')]";
         String electronicsLocator = "//div[@role='tablist']//span[contains(text(), 'Электроника')]";
         String phonesLocator = "//div[contains(@data-apiary-widget-name,'NavigationTree')]//ul//a[contains(text(), 'Смартфоны')]";
-        String purchasesInMarketLocator = "//button/span[contains(text(), 'Понятно')]";
         String samsungFilterLocator = "//input[contains(@name, 'Samsung')]/following-sibling::div"; //соседний с input'ом div
         String xiaomiFilterLocator = "//input[contains(@name, 'Xiaomi')]/following-sibling::div";
         String sortByPriceLocator = "//div[contains(@data-apiary-widget-name, 'SortPanel')]//button[text()='по цене']";
@@ -52,20 +51,19 @@ public class YandexMarketCompare extends DriverInitialize {
         String startCompareButtonLocator = "//div[contains(@data-apiary-widget-id, 'popupInformer')]//span[text()='Сравнить']";
         String elementsInCompareLocator = "//div[@data-apiary-widget-id='/content/compareContent']/div[@data-reactroot]/div[@data-tid][1]//div[@style]/div";
 
+        SoftAssertions softAssertions = new SoftAssertions();
+
         driver.get(BASE_URL);
         logger.info("Открыта главная страница Яндекс.Маркет");
+
+        tryToClosePopupWindow(popupWindowLocator);
 
         findElementWithTimeout(electronicsLocator).click();
         logger.info("Клик на пункте меню 'Электроника'");
         findElementWithTimeout(phonesLocator).click();
         logger.info("Клик на пункте меню 'Смартфоны'");
 
-        try {
-            findElementWithTimeout(purchasesInMarketLocator).click();
-            logger.info("Нажата кнопка 'Понятно' во всплывающем окне о покупках на Маркете");
-        } catch (org.openqa.selenium.TimeoutException ex) {
-            logger.info("Всплывающее окно о покупках на Маркете не было показано");
-        }
+        tryToClosePopupWindow(popupWindowLocator);
 
         findElementWithTimeout(samsungFilterLocator).click();
         logger.info("Нажат чекбокс 'Samsung' в фильтре поиска");
@@ -73,12 +71,14 @@ public class YandexMarketCompare extends DriverInitialize {
         logger.info("Нажат чекбокс 'Xiaomi' в фильтре поиска");
 
         new WebDriverWait(driver, 15).until(ExpectedConditions.invisibilityOfElementLocated(By.xpath(spinnerLocator)));
+        tryToClosePopupWindow(popupWindowLocator);
+
         WebElement results = findElementWithTimeout(resultsListLocator);
         findElementWithTimeout(sortByPriceLocator).click();
         logger.info("Нажата ссылка 'по цене' в блоке сортиртировки");
 
         // Ожидание, пока блок с результатами обновится после сортировки
-        new WebDriverWait(driver, 5).until(ExpectedConditions.stalenessOf(results));
+        new WebDriverWait(driver, 10).until(ExpectedConditions.stalenessOf(results));
 
         String samsungModel = getElementDataByName("Samsung", phonesTitlesLocator).getName();
         addPhoneToCompare("Samsung", phonesTitlesLocator, firstSamsungLocator, phoneCompareLocator);
@@ -86,7 +86,8 @@ public class YandexMarketCompare extends DriverInitialize {
 
         WebElement samsungMessage = findElementWithTimeout(addedToCompareMessageLocator);
         String expectedMessage = String.format("Товар %s добавлен к сравнению", samsungModel);
-        Assertions.assertEquals(expectedMessage, samsungMessage.getText(), "Не совпадает текст во всплывающей плашке");
+        // Проверяем текст во всплывающей плашке для Samsung
+        softAssertions.assertThat(samsungMessage.getText()).isEqualTo(expectedMessage);
 
         findElementWithTimeout(closePopupButtonLocator).click();
         logger.info("Закрыта всплывающая плашка 'Товар добавлен к сравнению'");
@@ -97,27 +98,20 @@ public class YandexMarketCompare extends DriverInitialize {
 
         WebElement xiaomiMessage = findElementWithTimeout(addedToCompareMessageLocator);
         expectedMessage = String.format("Товар %s добавлен к сравнению", xiaomiModel);
-        Assertions.assertEquals(expectedMessage, xiaomiMessage.getText(), "Не совпадает текст во всплывающей плашке");
+        // Проверяем текст во всплывающей плашке для Xiaomi
+        softAssertions.assertThat(xiaomiMessage.getText()).isEqualTo(expectedMessage);
 
         findElementWithTimeout(startCompareButtonLocator).click();
         logger.info("Нажата кнопка 'Сравнить' во всплывающей плашке");
 
         new WebDriverWait(driver, 5).until(ExpectedConditions.visibilityOfElementLocated(By.xpath(elementsInCompareLocator)));
         int actualPhonesInCompare = driver.findElements(By.xpath(elementsInCompareLocator)).size();
-        Assertions.assertEquals(2, actualPhonesInCompare, "Количество телефонов в сравнении не равно 2");
+        // Проверяем количество телефонов в сравнении
+        softAssertions.assertThat(actualPhonesInCompare).isEqualTo(2);
+        softAssertions.assertAll();
     }
 
-    public WebElement findElementWithTimeout(String locator, int timeout) {
-        WebDriverWait wait = new WebDriverWait(driver, timeout);
-        WebElement element = wait.until(ExpectedConditions.visibilityOfElementLocated(By.xpath(locator)));
-        return element;
-    }
-
-    public WebElement findElementWithTimeout(String locator) {
-        return findElementWithTimeout(locator, 5);
-    }
-
-    public PhoneData getElementDataByName(String company, String locator) {
+    private PhoneData getElementDataByName(String company, String locator) {
         List<WebElement> phones = driver.findElements(By.xpath(locator));
         Optional<WebElement> el = phones.stream()
                 .filter(p -> p.getAttribute("title").contains(company))
@@ -128,7 +122,7 @@ public class YandexMarketCompare extends DriverInitialize {
         return new PhoneData(model, pos);
     }
 
-    public void addPhoneToCompare(String company, String phonesTitlesLocator, String phoneTitleLocator, String addPhoneToCompareLocator) {
+    private void addPhoneToCompare(String company, String phonesTitlesLocator, String phoneTitleLocator, String addPhoneToCompareLocator) {
         int position = getElementDataByName(company, phonesTitlesLocator).getPosition();
         if (position == -1) {
             logger.error(String.format("Элемент %s не найден на странице результатов", company));
@@ -139,6 +133,15 @@ public class YandexMarketCompare extends DriverInitialize {
         Actions actions = new Actions(driver);
         actions.moveToElement(firstPhone).build().perform();
         findElementWithTimeout(String.format(addPhoneToCompareLocator, position + 1)).click();
+    }
+
+    private void tryToClosePopupWindow(String locator) {
+        try {
+            findElementWithTimeout(locator).click();
+            logger.info("Нажата кнопка 'Понятно' во всплывающем окне");
+        } catch (org.openqa.selenium.TimeoutException ex) {
+            logger.info("Всплывающее окно не было показано");
+        }
     }
 }
 
